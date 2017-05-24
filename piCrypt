@@ -117,7 +117,7 @@ class EncryptionClass(object):
 def useage():
 	print('\npiCrypt\n\n\tUseage: piCrypt [options] [arguments]\n\n' +
 	'\tOptions:\n\t-h, --help: Shows this help screen.\n\t-r, --recursive: ' +
-	'Encrypts of decrypts folders recursively.\n\t-e, --encrypt: Sets ' +
+	'Encrypts or decrypts folders recursively.\n\t-e, --encrypt: Sets ' +
 	'program to encrypt files.\n\t-d, --decrypt: Sets program to decrypt ' +
 	'files.\n\n\tArguments:\n\tArguments passed are files to be encrypted ' +
 	'or decrypted.\n\tIf directories are passed as arguments without the ' +
