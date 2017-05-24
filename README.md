@@ -6,7 +6,7 @@ It requires the linux package python-crypto.
 
 	Options:
 	-h, --help: Shows this help screen.
-	-r, --recursive: Encrypts of decrypts folders recursively.
+	-r, --recursive: Encrypts or decrypts folders recursively.
 	-e, --encrypt: Sets program to encrypt files.
 	-d, --decrypt: Sets program to decrypt files.
 
