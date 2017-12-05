@@ -68,18 +68,18 @@ class EncryptionClass(object):
                 with open(enc, 'wb') as outfile:
                     outfile.write(fileSize.encode('utf-8'))
                     outfile.write(IV)
-                    outfile.write(encKey)
+                    outfile.write(encKey.zfill(64))
                     while True:
                         chunk = infile.read(chunkSize)
                         if len(chunk) == 0:
                             break
                         elif len(chunk) % 16 != 0:
                             chunk += b' ' * (16 - (len(chunk) % 16))
-                            outfile.write(encryptor.encrypt(chunk))
-            os.remove(dec)
+                        outfile.write(encryptor.encrypt(chunk))
+            #os.remove(dec)
 
     ## Decrypts file
-    def Decrypt(self, key):
+    def Decrypt(self, key, read):
         global tar_archive
         for enc, dec in zip(self.EncryptedFiles, self.DecryptedFiles):
             hasher = SHA256.new(key.encode('utf-8'))
@@ -88,28 +88,39 @@ class EncryptionClass(object):
             with open(enc, 'rb') as infile:
                 filesize = int(infile.read(16))
                 IV = infile.read(16)
-                old_encKey = infile.read(32)
-                if not old_encKey == encKey:
+                old_encKey = infile.read(64)
+                if not old_encKey == encKey.zfill(64):
                     raise ValueError('Wrong password.')
                     return
                 decryptor = AES.new(encKey, AES.MODE_CBC, IV)
-                with open(dec, 'wb') as outfile:
+                if read:
+                    fileContents = ''
                     while True:
                         chunk = infile.read(chunkSize)
                         if len(chunk) == 0:
                             break
-                        outfile.write(decryptor.decrypt(chunk))
+                        fileContents += decryptor.decrypt(chunk).decode('utf-8')
+                        if len(fileContents) > filesize:
+                            fileContents = fileContents[:filesize]
+                    print(fileContents)
+                else:
+                    with open(dec, 'wb') as outfile:
+                        while True:
+                            chunk = infile.read(chunkSize)
+                            if len(chunk) == 0:
+                                break
+                            outfile.write(decryptor.decrypt(chunk))
                         outfile.truncate(filesize)
 
-            os.remove(enc)
+            #if not read:
+                #os.remove(enc)
+
             if tar_archive:
                 shutil.unpack_archive(dec, format='tar')
 
+
 def useage():
     print('''
-piCrypt
-
-
 \tUseage: piCrypt [options] [arguments]
 
 \tOptions:
@@ -117,6 +128,8 @@ piCrypt
 \t-h, --help: Shows this help screen.
 \t-e, --encrypt: Sets program to encrypt files.
 \t-d, --decrypt: Sets program to decrypt files.
+\t-r, --read: Prints output of file to screen instead of
+\t\twriting to file (to be used -d, --decrypt).
 
 \tArguments:
 \tArguments passed are files to be encrypted or decrypted.
@@ -127,14 +140,14 @@ piCrypt
 \tencrypt or decrypt all files.''')
 
 def printerror(errormsg):
-    sys.stderr.write(errormsg)
-    sys.stderr.flush()
-    sys.exit(1)
+    print('\n\033[91m{}\033[0m'.format(errormsg))
+    exit(1)
 
 def main(argv):
     action = None
+    read = False
     try:
-        opts, args = getopt.getopt(argv, 'hed',['help', 'encrypt', 'decrypt'])
+        opts, args = getopt.getopt(argv, 'hedr',['help', 'encrypt', 'decrypt', 'read'])
     except getopt.GetoptError as err:
         useage()
         printerror(str(err) + '\n')
@@ -147,6 +160,8 @@ def main(argv):
             action = 'encrypt'
         elif options in ('-d', '--decrypt'):
             action = 'decrypt'
+        if options in ('-r', '--read'):
+            read = True
 
     if len(args) < 1: ## checks there is at least one file to work on
         useage()
@@ -162,9 +177,10 @@ def main(argv):
     elif action == 'decrypt':
         password = getpass.getpass('Input decryption password:')
         try:
-            crypt.Decrypt(password)
+            crypt.Decrypt(password, read)
         except Exception as err:
-            print('\033[91m{}\033[0m'.format(err))
+            printerror(str(err) + '\n')
+            exit(1)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
