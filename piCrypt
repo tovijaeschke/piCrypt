@@ -76,7 +76,7 @@ class EncryptionClass(object):
                         elif len(chunk) % 16 != 0:
                             chunk += b' ' * (16 - (len(chunk) % 16))
                         outfile.write(encryptor.encrypt(chunk))
-            #os.remove(dec)
+            os.remove(dec)
 
     ## Decrypts file
     def Decrypt(self, key, read):
@@ -112,8 +112,8 @@ class EncryptionClass(object):
                             outfile.write(decryptor.decrypt(chunk))
                         outfile.truncate(filesize)
 
-            #if not read:
-                #os.remove(enc)
+            if not read:
+                os.remove(enc)
 
             if tar_archive:
                 shutil.unpack_archive(dec, format='tar')
