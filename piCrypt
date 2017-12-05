@@ -1,168 +1,170 @@
 #!/usr/bin/env python3
 '''
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+        This program is free software: you can redistribute it and/or modify
+        it under the terms of the GNU General Public License as published by
+        the Free Software Foundation, either version 3 of the License, or
+        (at your option) any later version.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+        This program is distributed in the hope that it will be useful,
+        but WITHOUT ANY WARRANTY; without even the implied warranty of
+        MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+        You should have received a copy of the GNU General Public License
+        along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 try:
-	import os, sys, getopt, getpass
-	from Crypto.Cipher import AES
-	from Crypto.Hash import SHA256
-	from Crypto import Random
-except:
-	sys.stderr.write('ERROR -- Dependencies Required:\n\tCrypto\n')
-	sys.stderr.flush()
-	sys.exit(1)
+        import os, sys, getopt, getpass, shutil, datetime
+        from Crypto.Cipher import AES
+        from Crypto.Hash import SHA256, HMAC
+        from Crypto import Random
+except Exception as err:
+        sys.stderr.write('ERROR -- Dependencies Required:\n\t' + err +'\n')
+        sys.stderr.flush()
+        sys.exit(1)
 
-recursive = False
+tar_archive = False
 workingDir = os.getcwd()
 
-## Class creates objects for indevidual files and encrypts of decrypts
+## Class creates objects for individual files and encrypts of decrypts
 class EncryptionClass(object):
-	def __init__(self, files):
-		self.EncryptedFiles = []
-		self.DecryptedFiles = []
-		for x in files:
-			if os.path.isfile(x):
-				if x[-4:] == '.enc':
-					self.EncryptedFiles.append(workingDir + '/' + x)
-					self.DecryptedFiles.append(workingDir + '/' + x[:-4])
-				else:
-					self.EncryptedFiles.append(workingDir  + '/' + x + '.enc')
-					self.DecryptedFiles.append(workingDir  + '/' + x)
-			elif os.path.isdir(x):
-				if recursive:
-					for subdir, dirs, files in os.walk(x):
-						if subdir[-1] == '/':
-							subdirectory = subdir
-						else:
-							subdirectory = subdir + '/'
-						for n in files:
-							if n[-4:] == '.enc':
-								self.EncryptedFiles.append(workingDir  + '/' + subdirectory + n)
-								self.DecryptedFiles.append(workingDir   + '/' + subdirectory + n[:-4])
-							else:
-								self.EncryptedFiles.append(workingDir   + '/' + subdirectory + n + '.enc')
-								self.DecryptedFiles.append(workingDir   + '/' + subdirectory + n)
-				else:
-					for i in os.listdir(x):
-						if os.path.isfile(workingDir  + '/' + x + i):
-							if i[-4:] == '.enc':
-								self.EncryptedFiles.append(workingDir  + '/' + x + i)
-								self.DecryptedFiles.append(workingDir  + '/' + x + i[:-4])
-							else:
-								self.EncryptedFiles.append(workingDir  + '/' + x + i + '.enc')
-								self.DecryptedFiles.append(workingDir  + '/' + x + i)
-			else:
-				sys.stderr.write('ERROR\n')
-				sys.stderr.flush()
-				sys.exit(1)
+    def __init__(self, files):
+        global tar_archive
+        self.EncryptedFiles = []
+        self.DecryptedFiles = []
+        for x in files:
+            if os.path.isfile(x):
+                if x[-4:] == '.enc':
+                    self.EncryptedFiles.append(os.path.join(workingDir,x))
+                    self.DecryptedFiles.append(os.path.join(workingDir,x[:-4]))
+                    if x[-8:-4] == '.tar':
+                        tar_archive = True
+                else:
+                    self.EncryptedFiles.append(os.path.join(workingDir,(x + '.enc')))
+                    self.DecryptedFiles.append(os.path.join(workingDir, x))
+
+            elif os.path.isdir(x):
+                archive_name = str(datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S"))
+                shutil.make_archive(archive_name, 'tar', base_dir=x)
+                self.EncryptedFiles.append(os.path.join(workingDir,(archive_name+'.tar.enc')))
+                self.DecryptedFiles.append(os.path.join(workingDir,(archive_name + '.tar')))
+                shutil.rmtree(x)
+            else:
+                sys.stderr.write('ERROR\n')
+                sys.stderr.flush()
+                sys.exit(1)
 
 
-	## Encrypts file
-	def Encrypt(self, key):
-		for enc, dec in zip(self.EncryptedFiles, self.DecryptedFiles):
-			hasher = SHA256.new(key.encode('utf-8'))
-			encKey = hasher.digest()
-			chunkSize = 64 * 1024
-			fileSize = str(os.path.getsize(dec)).zfill(16)
-			IV = Random.new().read(16)
-			encryptor = AES.new(encKey, AES.MODE_CBC, IV)
+    ## Encrypts file
+    def Encrypt(self, key):
+        for enc, dec in zip(self.EncryptedFiles, self.DecryptedFiles):
+            hasher = SHA256.new(key.encode('utf-8'))
+            encKey = hasher.digest()
+            chunkSize = 64 * 1024
+            fileSize = str(os.path.getsize(dec)).zfill(16)
+            IV = Random.new().read(16)
+            encryptor = AES.new(encKey, AES.MODE_CBC, IV)
+            with open(dec, 'rb') as infile:
+                with open(enc, 'wb') as outfile:
+                    outfile.write(fileSize.encode('utf-8'))
+                    outfile.write(IV)
+                    outfile.write(encKey)
+                    while True:
+                        chunk = infile.read(chunkSize)
+                        if len(chunk) == 0:
+                            break
+                        elif len(chunk) % 16 != 0:
+                            chunk += b' ' * (16 - (len(chunk) % 16))
+                            outfile.write(encryptor.encrypt(chunk))
+            os.remove(dec)
 
-			with open(dec, 'rb') as infile:
-				with open(enc, 'wb') as outfile:
-					outfile.write(fileSize.encode('utf-8'))
-					outfile.write(IV)
+    ## Decrypts file
+    def Decrypt(self, key):
+        global tar_archive
+        for enc, dec in zip(self.EncryptedFiles, self.DecryptedFiles):
+            hasher = SHA256.new(key.encode('utf-8'))
+            encKey = hasher.digest()
+            chunkSize = 64 * 1024
+            with open(enc, 'rb') as infile:
+                filesize = int(infile.read(16))
+                IV = infile.read(16)
+                old_encKey = infile.read(32)
+                if not old_encKey == encKey:
+                    raise ValueError('Wrong password.')
+                    return
+                decryptor = AES.new(encKey, AES.MODE_CBC, IV)
+                with open(dec, 'wb') as outfile:
+                    while True:
+                        chunk = infile.read(chunkSize)
+                        if len(chunk) == 0:
+                            break
+                        outfile.write(decryptor.decrypt(chunk))
+                        outfile.truncate(filesize)
 
-					while True:
-						chunk = infile.read(chunkSize)
-						if len(chunk) == 0:
-							break
-						elif len(chunk) % 16 != 0:
-							chunk += b' ' * (16 - (len(chunk) % 16))
-
-						outfile.write(encryptor.encrypt(chunk))
-			os.remove(dec)
-
-	## Decrypts file
-	def Decrypt(self, key):
-		for enc, dec in zip(self.EncryptedFiles, self.DecryptedFiles):
-			hasher = SHA256.new(key.encode('utf-8'))
-			encKey = hasher.digest()
-			chunkSize = 64 * 1024
-
-			with open(enc, 'rb') as infile:
-				filesize = int(infile.read(16))
-				IV = infile.read(16)
-				decryptor = AES.new(encKey, AES.MODE_CBC, IV)
-
-				with open(dec, 'wb') as outfile:
-					while True:
-						chunk = infile.read(chunkSize)
-						if len(chunk) == 0:
-							break
-						outfile.write(decryptor.decrypt(chunk))
-					outfile.truncate(filesize)
-			os.remove(enc)
+            os.remove(enc)
+            if tar_archive:
+                shutil.unpack_archive(dec, format='tar')
 
 def useage():
-	print('\npiCrypt\n\n\tUseage: piCrypt [options] [arguments]\n\n' +
-	'\tOptions:\n\t-h, --help: Shows this help screen.\n\t-r, --recursive: ' +
-	'Encrypts or decrypts folders recursively.\n\t-e, --encrypt: Sets ' +
-	'program to encrypt files.\n\t-d, --decrypt: Sets program to decrypt ' +
-	'files.\n\n\tArguments:\n\tArguments passed are files to be encrypted ' +
-	'or decrypted.\n\tIf directories are passed as arguments without the ' +
-	'recursive option,\n\tall files within specified directory will be ' +
-	'encrypted or decrypted.\n\tIf directories are passed as arguments ' +
-	'with the recursive option,\n\tpiCrypt will traverse all contained ' +
-	'files and directories and encrypt or decrypt all files.\n')
+    print('''
+piCrypt
+
+
+\tUseage: piCrypt [options] [arguments]
+
+\tOptions:
+
+\t-h, --help: Shows this help screen.
+\t-e, --encrypt: Sets program to encrypt files.
+\t-d, --decrypt: Sets program to decrypt files.
+
+\tArguments:
+\tArguments passed are files to be encrypted or decrypted.
+\tIf directories are passed as arguments without the recursive option,
+\tall files within specified directory will be encrypted or decrypted.
+\tIf directories are passed as arguments with the recursive option,
+\tpiCrypt will traverse all contained files and directories and 
+\tencrypt or decrypt all files.''')
 
 def printerror(errormsg):
-	sys.stderr.write(errormsg)
-	sys.stderr.flush()
-	sys.exit(1)
+    sys.stderr.write(errormsg)
+    sys.stderr.flush()
+    sys.exit(1)
 
 def main(argv):
-	global recursive
-	action = None
-	try:
-		opts, args = getopt.getopt(argv, 'hred',['help', 'recursive', 'encrypt',
-									'decrypt']) ## collects arguements
-	except getopt.GetoptError as err:
-		useage()
-		printerror(str(err) + '\n')
-	for options, arguments in opts: ## checks for arguments
-		if options in ('-r', '--recursive'):
-			recursive = True
-		elif options in ('-h', '--help'):
-			useage()
-			exit(0)
-		elif options in ('-e', '--encrypt'):
-			action = 'encrypt'
-		elif options in ('-d', '--decrypt'):
-			action = 'decrypt'
-	if len(args) < 1: ## checks there is at least one file to work on
-		useage()
-		printerror('Argument required: folder or file needed to encrypt of decrypt\n')
-	if action == None: ## checks if there is enc or dec option
-		useage()
-		printerror('Option required: either add encryption or decryption option\n')
-	crypt = EncryptionClass(args) ## creates Encryption object
-	if action == 'encrypt':
-		password = getpass.getpass('Input encryption password:')
-		crypt.Encrypt(password)
-	elif action == 'decrypt':
-		password = getpass.getpass('Input decryption password:')
-		crypt.Decrypt(password)
+    action = None
+    try:
+        opts, args = getopt.getopt(argv, 'hed',['help', 'encrypt', 'decrypt'])
+    except getopt.GetoptError as err:
+        useage()
+        printerror(str(err) + '\n')
+
+    for options, arguments in opts:
+        if options in ('-h', '--help'):
+            useage()
+            exit(0)
+        elif options in ('-e', '--encrypt'):
+            action = 'encrypt'
+        elif options in ('-d', '--decrypt'):
+            action = 'decrypt'
+
+    if len(args) < 1: ## checks there is at least one file to work on
+        useage()
+        printerror('Argument required: folder or file needed to encrypt of decrypt\n')
+    if action == None: ## checks if there is enc or dec option
+        useage()
+        printerror('Option required: either add encryption or decryption option\n')
+
+    crypt = EncryptionClass(args) ## creates Encryption object
+    if action == 'encrypt':
+        password = getpass.getpass('Input encryption password:')
+        crypt.Encrypt(password)
+    elif action == 'decrypt':
+        password = getpass.getpass('Input decryption password:')
+        try:
+            crypt.Decrypt(password)
+        except Exception as err:
+            print('\033[91m{}\033[0m'.format(err))
 
 if __name__ == "__main__":
-	main(sys.argv[1:])
+    main(sys.argv[1:])
