@@ -185,6 +185,14 @@ def main(argv):
         except Exception as err:
             printerror(str(err) + '\n')
             exit(1)
+    # Remove passwords from memory
+    try:
+        password=len(password)*"A"
+        del password
+        password2=len(password)*"A"
+        del password2
+    except:
+        pass
 
 if __name__ == "__main__":
     main(sys.argv[1:])
