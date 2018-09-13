@@ -173,7 +173,11 @@ def main(argv):
     crypt = EncryptionClass(args) ## creates Encryption object
     if action == 'encrypt':
         password = getpass.getpass('Input encryption password:')
-        crypt.Encrypt(password)
+        password2 = getpass.getpass('Confirm encryption password:')
+        if password == password2:
+            crypt.Encrypt(password)
+        else:
+            raise ValueError('Error: Passwords do not match.')
     elif action == 'decrypt':
         password = getpass.getpass('Input decryption password:')
         try:
